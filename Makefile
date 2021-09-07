@@ -8,6 +8,7 @@ DOCKER_TRIMMOMATIC = $(DOCKER) quay.io/gitobioinformatics/trimmomatic:0.38
 DOCKER_GATB_PIPELINE = docker run --rm -v $$(pwd):/tmp/project -w /tmp/project agria.analytica/gatb-minia-pipeline:9d56f42
 DOCKER_QUAST = $(DOCKER) -v $$(pwd)/../ref-genomes/Arhypogaea/var.Tifrunner:/project/genome agria.analytica/quast:5.0.2
 DOCKER_RAGTAG = $(DOCKER) agria.analytica/ragtag:2.0.1
+DOCKER_GENOMESCOPE = $(DOCKER) agria.analytica/genomescope2:be1953b
 
 DIRS = genome \
        results results/fastx results/fastqc \
@@ -16,6 +17,7 @@ DIRS = genome \
 	   results/gatb-pipeline \
 	   results/quast \
 	   results/ragtag results/ragtag/minia-k141_besst_ragtaq results/ragtag/minia-k141_ragtag
+	   results/genomescope
 DATA = data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_1.fq.gz \
        data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_2.fq.gz
 
@@ -55,23 +57,49 @@ $(TRIM_FASTQ_PAIRED1): $(DATA)
 	$(TRIM_FASTQ_UNPAIRED2) ILLUMINACLIP:$(ADAPTER):2:30:10 SLIDINGWINDOW:3:5
 
 # genomescope
-KMER_TABLE = $(addsuffix .kmc_pre, $(addprefix results/kmc/, $(notdir $(basename $(DATA)))))
-KMER_HIST  = results/kmc/kacang.lurik.hist
-KMER_MERGE  = results/kmc/kacang.lurik.merge.kmc_pre
-genomescope: kmc
+KMER_TABLE_21 = $(addsuffix .trim.k21.kmc_pre, $(addprefix results/kmc/, $(notdir $(basename $(DATA)))))
+KMER_TABLE_31 = $(addsuffix .trim.k31.kmc_pre, $(addprefix results/kmc/, $(notdir $(basename $(DATA)))))
+KMER_HIST_21  = results/kmc/kacang.lurik.k21.hist
+KMER_HIST_31  = results/kmc/kacang.lurik.k31.hist
+KMER_MERGE_21  = results/kmc/kacang.lurik.k21.merge.kmc_pre
+KMER_MERGE_31  = results/kmc/kacang.lurik.k31.merge.kmc_pre
+GENOMESCOPE_OUT= results/genomescope/kacang.lurik.k21.p2 \
+                 results/genomescope/kacang.lurik.k21.p3 \
+				 results/genomescope/kacang.lurik.k21.p4 \
+                 results/genomescope/kacang.lurik.k31.p2 \
+				 results/genomescope/kacang.lurik.k31.p3 \
+				 results/genomescope/kacang.lurik.k31.p4
+genomescope: kmc $(GENOMESCOPE_OUT)
 
-kmc: $(KMER_HIST)
+# run kmc.
+kmc: $(KMER_HIST_21) $(KMER_HIST_31)
 
-$(KMER_HIST): $(KMER_MERGE)
-	$(DOCKER_KMC) kmc_tools transform $< histogram $@ -cx10000
+results/kmc/kacang.lurik.k%.hist: results/kmc/kacang.lurik.k%.merge.kmc_pre
+	$(DOCKER_KMC) kmc_tools transform $(basename $<) histogram $@ -cx10000
 
 # merge kmer from all fastq.
-$(KMER_MERGE): $(KMER_TABLE)
+$(KMER_MERGE_21): $(KMER_TABLE_21)
+	$(DOCKER_KMC) kmc_tools simple $(basename $^) union $(basename $@)
+
+$(KMER_MERGE_31): $(KMER_TABLE_31)
 	$(DOCKER_KMC) kmc_tools simple $(basename $^) union $(basename $@)
 
 # generate kmer tabel from raw data.
-$(KMER_TABLE): results/kmc/%.kmc_pre: data/X401SC21062291-Z01-F001/raw_data/KL/%.gz
-	$(DOCKER_KMC) kmc -k21 -t7 -m48 -ci3 -cs10000 $< $(basename $@) results/kmc/tmp/
+$(KMER_TABLE_21): results/kmc/%.k21.kmc_pre: results/trimmomatic/%.gz
+	$(DOCKER_KMC) kmc -k21 -t10 -m48 -ci3 -cs10000 $< $(basename $@) results/kmc/tmp/
+
+$(KMER_TABLE_31): results/kmc/%.k31.kmc_pre: results/trimmomatic/%.gz
+	$(DOCKER_KMC) kmc -k31 -t10 -m48 -ci3 -cs10000 $< $(basename $@) results/kmc/tmp/
+
+# run genomescope.
+results/genomescope/kacang.lurik.k%.p2: results/kmc/kacang.lurik.k%.hist
+	$(DOCKER_GENOMESCOPE) genomescope2 -i $< -o $(dir $@) -k $* -n $(notdir $@) -p 2
+
+results/genomescope/kacang.lurik.k%.p3: results/kmc/kacang.lurik.k%.hist
+	$(DOCKER_GENOMESCOPE) genomescope2 -i $< -o $(dir $@) -k $* -n $(notdir $@) -p 3
+
+results/genomescope/kacang.lurik.k%.p4: results/kmc/kacang.lurik.k%.hist
+	$(DOCKER_GENOMESCOPE) genomescope2 -i $< -o $(dir $@) -k $* -n $(notdir $@) -p 4
 
 # assemble genome.
 gatb-pipeline: results/gatb-pipeline/kacang-lurik.assembly.fasta
@@ -110,6 +138,5 @@ results/ragtag/minia-k141_besst_ragtag/ragtag.scaffold.fasta: $(REF_AHYPOGAEA) $
 
 results/ragtag/minia-k141_ragtag/ragtag.scaffold.fasta: $(REF_AHYPOGAEA) $(ASSEMBLY_MINIA_K141)
 	$(DOCKER_RAGTAG) ragtag.py scaffold -o $(dir $@) -t 7 -u $^
-
 
 
