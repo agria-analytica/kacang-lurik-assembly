@@ -66,7 +66,7 @@ $(KMER_MERGE): $(KMER_TABLE)
 
 # generate kmer tabel from raw data.
 $(KMER_TABLE): results/kmc/%.kmc_pre: data/X401SC21062291-Z01-F001/raw_data/KL/%.gz
-	$(DOCKER_KMC) kmc -k21 -t10 -m48 -ci3 -cs10000 $< $(basename $@) results/kmc/tmp/
+	$(DOCKER_KMC) kmc -k21 -t7 -m48 -ci3 -cs10000 $< $(basename $@) results/kmc/tmp/
 
 # assemble genome.
 gatb-pipeline: results/gatb-pipeline/kacang-lurik.assembly.fasta
@@ -75,6 +75,6 @@ gatb-pipeline: results/gatb-pipeline/kacang-lurik.assembly.fasta
 # to run multiple commands on docker we have to use /bin/bash -c or equivalent shell.
 # source: https://stackoverflow.com/a/28490909
 results/gatb-pipeline/kacang-lurik.assembly.fasta: $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2)
-	$(DOCKER_GATB_PIPELINE) /bin/bash -c "cd $(dir $@) && ../../../gatb -1 ../../$(TRIM_FASTQ_PAIRED1) -2 ../../$(TRIM_FASTQ_PAIRED2) -o $(notdir $(basename $@)) --nb-cores 8 --max-memory 48000 --kmer-sizes 21,41,61 --restart-from 61" 
+	$(DOCKER_GATB_PIPELINE) /bin/bash -c "cd $(dir $@) && ../../../gatb -1 ../../$(TRIM_FASTQ_PAIRED1) -2 ../../$(TRIM_FASTQ_PAIRED2) -o $(notdir $(basename $@)) --nb-cores 7 --max-memory 60000" 
 
 
