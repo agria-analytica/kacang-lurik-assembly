@@ -42,11 +42,11 @@ TRIM_FASTQ_PAIRED2 = $(addprefix results/trimmomatic/, $(addsuffix .trim.gz, $(b
 TRIM_FASTQ_UNPAIRED1 = $(addsuffix .unpaired.gz, $(basename $(TRIM_FASTQ_PAIRED1)))
 TRIM_FASTQ_UNPAIRED2 =  $(addsuffix .unpaired.gz, $(basename $(TRIM_FASTQ_PAIRED2)))
 ADAPTER = illumina-adapter-novogene.fa
-LOG_TRIMMOMATIC = results/trimmomatic/log.out
+
 trimmomatic: $(TRIM_FASTQ_PAIRED1)
 
 $(TRIM_FASTQ_PAIRED1): $(DATA)
-	$(DOCKER_TRIMMOMATIC) PE -threads 10 -trimlog $(LOG_TRIMMOMATIC) $^ $@ $(TRIM_FASTQ_UNPAIRED1) $(TRIM_FASTQ_PAIRED2) \
+	$(DOCKER_TRIMMOMATIC) PE -threads 7 $^ $@ $(TRIM_FASTQ_UNPAIRED1) $(TRIM_FASTQ_PAIRED2) \
 	$(TRIM_FASTQ_UNPAIRED2) ILLUMINACLIP:$(ADAPTER):2:30:10 SLIDINGWINDOW:3:5
 
 # genomescope
