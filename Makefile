@@ -75,6 +75,6 @@ gatb-pipeline: results/gatb-pipeline/kacang-lurik.assembly.fasta
 # to run multiple commands on docker we have to use /bin/bash -c or equivalent shell.
 # source: https://stackoverflow.com/a/28490909
 results/gatb-pipeline/kacang-lurik.assembly.fasta: $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2)
-	$(DOCKER_GATB_PIPELINE) /bin/bash -c "cd $(dir $@) && ../../../gatb -1 ../../$(TRIM_FASTQ_PAIRED1) -2 ../../$(TRIM_FASTQ_PAIRED2) -o $(notdir $(basename $@)) --nb-cores 7 --max-memory 60000" 
+	$(DOCKER_GATB_PIPELINE) /bin/bash -c "cd $(dir $@) && ../../../gatb -1 ../../$(TRIM_FASTQ_PAIRED1) -2 ../../$(TRIM_FASTQ_PAIRED2) -o $(notdir $(basename $@)) --nb-cores 7 --max-memory 60000 --abundance-mins 10" 
 
 
