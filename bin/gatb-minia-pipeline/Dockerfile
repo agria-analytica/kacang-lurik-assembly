@@ -7,7 +7,8 @@ RUN micromamba install -y -n base -c bioconda -c conda-forge -c defaults \
 	mathstats \
 	pysam=0.8.3 \
 	bwa \
-	samtools && \
+	samtools \
+	networkx=1.9 && \
 	micromamba clean --all --yes
 RUN git clone --recursive https://github.com/GATB/gatb-minia-pipeline .
 
