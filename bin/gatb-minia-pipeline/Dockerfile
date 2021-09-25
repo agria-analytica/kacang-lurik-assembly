@@ -9,7 +9,7 @@ RUN micromamba install -y -n base -c bioconda -c conda-forge -c defaults \
 	bwa \
 	samtools \
 	networkx=1.11 \
-	matplotlib=1.5 && \
+	matplotlib && \
 	micromamba clean --all --yes
 RUN git clone --recursive https://github.com/GATB/gatb-minia-pipeline .
 
