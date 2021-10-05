@@ -7,7 +7,7 @@ DOCKER_KMC = $(DOCKER) quay.io/biocontainers/kmc:3.1.2rc1--h2d02072_0
 DOCKER_TRIMMOMATIC = $(DOCKER) quay.io/gitobioinformatics/trimmomatic:0.38
 DOCKER_GATB_PIPELINE = docker run --rm -v $$(pwd):/tmp/project -w /tmp/project agria.analytica/gatb-minia-pipeline:9d56f42
 DOCKER_QUAST = $(DOCKER) -v $$(pwd)/../ref-genomes/Arhypogaea/var.Tifrunner:/project/genome agria.analytica/quast:5.0.2
-DOCKER_RAGTAG = $(DOCKER) agria.analytia/ragtag:2.0.1
+DOCKER_RAGTAG = $(DOCKER) agria.analytica/ragtag:2.0.1
 
 DIRS = genome \
        results results/fastx results/fastqc \
