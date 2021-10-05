@@ -104,7 +104,7 @@ SCAFFOLD_ASSEMBLY = results/gatb-pipeline/kacang-lurik.assembly.fasta
 ragtag: results/ragtag/ragtag.scaffold.fasta
 	
 results/ragtag/ragtag.scaffold.fasta: $(REF_AHYPOGAEA) $(SCAFFOLD_ASSEMBLY)
-	$(DOCKER_RAGTAG) ragtag.py scaffold -o $(dir $@) -t 7 $^
+	$(DOCKER_RAGTAG) ragtag.py scaffold -o $(dir $@) -t 7 -u $^
 
 
 
