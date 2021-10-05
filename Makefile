@@ -15,7 +15,7 @@ DIRS = genome \
 	   results/trimmomatic \
 	   results/gatb-pipeline \
 	   results/quast \
-	   results/ragtag
+	   results/ragtag results/ragtag/minia-k141_besst_ragtaq results/ragtag/minia-k141_ragtag
 DATA = data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_1.fq.gz \
        data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_2.fq.gz
 
@@ -99,11 +99,16 @@ quast: results/gatb-pipeline/kacang-lurik.assembly.fasta
 	--min-contig 500 $(ASSEMBLY)
 
 # syntenic based scaffolding.
-SCAFFOLD_ASSEMBLY = results/gatb-pipeline/kacang-lurik.assembly.fasta
-
-ragtag: results/ragtag/ragtag.scaffold.fasta
+SCAFFOLD_BESST = results/gatb-pipeline/kacang-lurik.assembly.fasta
+ASSEMBLY_MINIA_K141 = results/gatb-pipeline/kacang-lurik.assembly_k141.contigs.fa
+SCAFFOLD_OUTPUT = results/ragtag/minia-k141_besst_ragtag/ragtag.scaffold.fasta \
+results/ragtag/minia-k141_ragtag/ragtag.scaffold.fasta
+ragtag: $(SCAFFOLD_OUTPUT) 
 	
-results/ragtag/ragtag.scaffold.fasta: $(REF_AHYPOGAEA) $(SCAFFOLD_ASSEMBLY)
+results/ragtag/minia-k141_besst_ragtag/ragtag.scaffold.fasta: $(REF_AHYPOGAEA) $(SCAFFOLD_BESST)
+	$(DOCKER_RAGTAG) ragtag.py scaffold -o $(dir $@) -t 7 -u $^
+
+results/ragtag/minia-k141_ragtag/ragtag.scaffold.fasta: $(REF_AHYPOGAEA) $(ASSEMBLY_MINIA_K141)
 	$(DOCKER_RAGTAG) ragtag.py scaffold -o $(dir $@) -t 7 -u $^
 
 
