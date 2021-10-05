@@ -7,16 +7,19 @@ DOCKER_KMC = $(DOCKER) quay.io/biocontainers/kmc:3.1.2rc1--h2d02072_0
 DOCKER_TRIMMOMATIC = $(DOCKER) quay.io/gitobioinformatics/trimmomatic:0.38
 DOCKER_GATB_PIPELINE = docker run --rm -v $$(pwd):/tmp/project -w /tmp/project agria.analytica/gatb-minia-pipeline:9d56f42
 DOCKER_QUAST = $(DOCKER) -v $$(pwd)/../ref-genomes/Arhypogaea/var.Tifrunner:/project/genome agria.analytica/quast:5.0.2
+DOCKER_RAGTAG = $(DOCKER) agria.analytia/ragtag:2.0.1
 
-DIRS = results results/fastx results/fastqc \
+DIRS = genome \
+       results results/fastx results/fastqc \
        results/kmc results/kmc/tmp \
 	   results/trimmomatic \
 	   results/gatb-pipeline \
-	   results/quast
+	   results/quast \
+	   results/ragtag
 DATA = data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_1.fq.gz \
        data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_2.fq.gz
 
-all: $(DIRS) qc trimmomatic genomescope gatb-pipeline quast
+all: $(DIRS) qc trimmomatic genomescope gatb-pipeline quast ragtag
 
 $(DIRS): 
 	[ -d $@ ] || mkdir $@
@@ -94,3 +97,14 @@ ASSEMBLY_NAME = k21,k41,k61,k81,k101,k121,k141,k141-scaffold
 quast: results/gatb-pipeline/kacang-lurik.assembly.fasta
 	$(DOCKER_QUAST) quast.py -o results/quast -t 8 --large -r $(REF_AHYPOGAEA) --features $(REF_AHYPOGAEA_GFF) -l $(ASSEMBLY_NAME) \
 	--min-contig 500 $(ASSEMBLY)
+
+# syntenic based scaffolding.
+SCAFFOLD_ASSEMBLY = results/gatb-pipeline/kacang-lurik.assembly.fasta
+
+ragtag: results/ragtag/ragtag.scaffold.fasta
+	
+results/ragtag/ragtag.scaffold.fasta: $(REF_AHYPOGAEA) $(SCAFFOLD_ASSEMBLY)
+	$(DOCKER_RAGTAG) ragtag.py scaffold -o $(dir $@) -t 7 $^
+
+
+
