@@ -8,18 +8,20 @@ DOCKER_TRIMMOMATIC = $(DOCKER) quay.io/gitobioinformatics/trimmomatic:0.38
 DOCKER_GATB_PIPELINE = docker run --rm -v $$(pwd):/tmp/project -w /tmp/project agria.analytica/gatb-minia-pipeline:9d56f42
 DOCKER_QUAST = $(DOCKER) -v $$(pwd)/../ref-genomes/Arhypogaea/var.Tifrunner:/project/genome agria.analytica/quast:5.0.2
 DOCKER_RAGTAG = $(DOCKER) agria.analytica/ragtag:2.0.1
+DOCKER_SWALO = $(DOCKER) agria-analytica/swalo:0.9.8-beta
 
 DIRS = genome \
        results results/fastx results/fastqc \
        results/kmc results/kmc/tmp \
 	   results/trimmomatic \
 	   results/gatb-pipeline \
+	   results/swalo \
 	   results/quast \
-	   results/ragtag results/ragtag/minia-k141_besst_ragtaq results/ragtag/minia-k141_ragtag
+	   results/ragtag results/ragtag/minia-k141_besst_ragtaq results/ragtag/minia-k141_ragtag results/minia-k141_swalo_ragtag
 DATA = data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_1.fq.gz \
        data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_2.fq.gz
 
-all: $(DIRS) qc trimmomatic genomescope gatb-pipeline quast ragtag
+all: $(DIRS) qc trimmomatic genomescope gatb-pipeline swalo quast ragtag
 
 $(DIRS): 
 	[ -d $@ ] || mkdir $@
@@ -82,6 +84,36 @@ gatb-pipeline: results/gatb-pipeline/kacang-lurik.assembly.fasta
 results/gatb-pipeline/kacang-lurik.assembly.fasta: $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2)
 	$(DOCKER_GATB_PIPELINE) /bin/bash -c "cd $(dir $@) && ../../../gatb -1 ../../$(TRIM_FASTQ_PAIRED1) -2 ../../$(TRIM_FASTQ_PAIRED2) -o $(notdir $(basename $@)) --nb-cores 7" 
 
+# scaffold using swalo.
+ASSEMBLY_MINIA_K141 = results/gatb-pipeline/kacang-lurik.assembly_k141.contigs.fa
+CONTIG_FILE = results/swalo/$(notdir $(ASSEMBLY_MINIA_K141))
+BOWTIE2_IDX = $(CONTIG_FILE).1.bt2
+MAP_FILE = $(basename $(CONTIG_FILE)).bowtie2.sam
+MAX_INSERT_SIZE = 20000
+MIN_CONTIG_LENGTH = 4400
+swalo: results/swalo/scaffolds.fa
+
+results/swalo/scaffolds.fa: $(CONTIG_FILE) results/swalo/unmappedOut.sam
+	cd results/swalo && \
+	$(DOCKER_SWALO) swalo $(notdir $<) $(MIN_CONTIG_LENGTH)
+
+$(CONTIG_FILE): $(ASSEMBLY_MINIA_K141)
+	ln -s $< $@
+
+$(BOWTIE2_IDX): $(CONTIG_FILE) 
+	$(DOCKER_SWALO) bowtie2-build --threads 4 $< $< 
+
+$(MAP_FILE): $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2) $(BOWTIE2_IDX)
+	$(DOCKER_SWALO) bowtie2 -k 5 -x $(CONTIG_FILE) -X $(MAX_INSERT_SIZE) -p 7 -1 $(TRIM_FASTQ_PAIRED1) -2 $(TRIM_FASTQ_PAIRED2) -S $@ 
+
+results/swalo/myout.sam: $(MAP_FILE)
+	cd results/swalo && \
+	$(DOCKER_SWALO) bowtie2convert $(notdir $<) $(notdir $(CONTIG_FILE)) $(MAX_INSERT_SIZE)
+
+results/swalo/unmappedOut.sam: $(CONTIG_FILE) results/swalo/myout.sam
+	cd results/swalo && \
+	$(DOCKER_SWALO) align $(notdir $<)
+
 # assembly assessment using quast.
 REF_AHYPOGAEA = genome/arahy.Tifrunner.gnm2.J5K5.genome_main.fna
 REF_AHYPOGAEA_GFF = genome/arahy.Tifrunner.gnm2.ann1.4K0L.gene_models_main.gff3
@@ -100,7 +132,6 @@ quast: results/gatb-pipeline/kacang-lurik.assembly.fasta
 
 # syntenic based scaffolding.
 SCAFFOLD_BESST = results/gatb-pipeline/kacang-lurik.assembly.fasta
-ASSEMBLY_MINIA_K141 = results/gatb-pipeline/kacang-lurik.assembly_k141.contigs.fa
 SCAFFOLD_OUTPUT = results/ragtag/minia-k141_besst_ragtag/ragtag.scaffold.fasta \
 results/ragtag/minia-k141_ragtag/ragtag.scaffold.fasta
 ragtag: $(SCAFFOLD_OUTPUT) 
