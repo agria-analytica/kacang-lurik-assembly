@@ -98,7 +98,8 @@ results/swalo/scaffolds.fa: $(CONTIG_FILE) results/swalo/unmappedOut.sam
 	$(DOCKER_SWALO) swalo $(notdir $<) $(MIN_CONTIG_LENGTH)
 
 $(CONTIG_FILE): $(ASSEMBLY_MINIA_K141)
-	[ -L $@ ] || ln -s $< $@
+	cd results/swalo && \
+	[ -L $@ ] || ln -s ../../$< $(notdir $@)
 
 $(BOWTIE2_IDX): $(CONTIG_FILE) 
 	$(DOCKER_SWALO) bowtie2-build --threads 4 $< $< 
