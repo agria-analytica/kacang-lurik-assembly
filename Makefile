@@ -8,7 +8,7 @@ DOCKER_TRIMMOMATIC = $(DOCKER) quay.io/gitobioinformatics/trimmomatic:0.38
 DOCKER_GATB_PIPELINE = docker run --rm -v $$(pwd):/tmp/project -w /tmp/project agria.analytica/gatb-minia-pipeline:9d56f42
 DOCKER_QUAST = $(DOCKER) -v $$(pwd)/../ref-genomes/Arhypogaea/var.Tifrunner:/project/genome agria.analytica/quast:5.0.2
 DOCKER_RAGTAG = $(DOCKER) agria.analytica/ragtag:2.0.1
-DOCKER_SWALO = $(DOCKER) agria-analytica/swalo:0.9.8-beta
+DOCKER_SWALO = $(DOCKER) agria.analytica/swalo:0.9.8-beta
 
 DIRS = genome \
        results results/fastx results/fastqc \
@@ -98,7 +98,7 @@ results/swalo/scaffolds.fa: $(CONTIG_FILE) results/swalo/unmappedOut.sam
 	$(DOCKER_SWALO) swalo $(notdir $<) $(MIN_CONTIG_LENGTH)
 
 $(CONTIG_FILE): $(ASSEMBLY_MINIA_K141)
-	ln -s $< $@
+	[ -L $@ ] || ln -s $< $@
 
 $(BOWTIE2_IDX): $(CONTIG_FILE) 
 	$(DOCKER_SWALO) bowtie2-build --threads 4 $< $< 
