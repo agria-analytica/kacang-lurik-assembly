@@ -234,7 +234,7 @@ TIFRUNNER_GFF = genome/arahy.Tifrunner.gnm2.ann1.4K0L.gene_models_main.gff3
 liftoff: $(LIIFTOFF_OUTPUT)
 
 $(LIFTOFF_OUTPUT): $(SCAFFOLD_OUTPUT) $(CHROMS) $(SCAFFOLDS) $(TIFRUNNER_FASTA) $(TIFRUNNER_GFF)
-	$(DOCKER_LIFTOFF) -g $(TIFRUNNER_GFF) -o $@ -dir $(dir $@) -u $(LIFTOFF_UNMAPPED) --chroms $(CHROMS)--unplaced  $(sCAFFOLDS)
+	$(DOCKER_LIFTOFF) -g $(TIFRUNNER_GFF) -o $@ -dir $(dir $@) -u $(LIFTOFF_UNMAPPED) --chroms $(CHROMS) --unplaced  $(SCAFFOLDS)
 
 $(CHROMS): $(TIFRUNNER_GENOME)
 	grep "Arahy" $< | perl -lane 'if (/^>/) {$$new=substr($$_,1); print "$$_,$$new"}' > $@
