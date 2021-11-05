@@ -9,6 +9,7 @@ DOCKER_GATB_PIPELINE = docker run --rm -v $$(pwd):/tmp/project -w /tmp/project a
 DOCKER_QUAST = $(DOCKER) -v $$(pwd)/../ref-genomes/Arhypogaea/var.Tifrunner:/project/genome agria.analytica/quast:5.0.2
 DOCKER_RAGTAG = $(DOCKER) agria.analytica/ragtag:2.0.1
 DOCKER_GENOMESCOPE = $(DOCKER) agria.analytica/genomescope2:be1953b
+DOCKER_LIFTOFF = $(DOCKER) agria.analytica/liftoff:1.6.1
 
 DIRS = genome \
 	   data data/Fuhuasheng data/Shitouqi data/Tifrunner \
@@ -18,11 +19,12 @@ DIRS = genome \
 	   results/gatb-pipeline \
 	   results/quast \
 	   results/ragtag results/ragtag/minia-k141_besst_ragtaq results/ragtag/minia-k141_ragtag
-	   results/genomescope
+	   results/genomescope \
+	   results/liftoff
 DATA = data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_1.fq.gz \
        data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_2.fq.gz
 
-all: $(DIRS) qc trimmomatic genomescope gatb-pipeline quast ragtag
+all: $(DIRS) qc trimmomatic genomescope gatb-pipeline quast ragtag liftoff
 
 $(DIRS): 
 	[ -d $@ ] || mkdir $@
@@ -137,7 +139,7 @@ results/kmc/Shitouqi.k21.kmc_pre: data/Shitouqi/Shitouqi.fa.gz
 	$(DOCKER_KMC) kmc -k21 -t7 -m48 -ci3 -cs10000 -fa $< $(basename $@) results/kmc/tmp/
 
 results/kmc/Shitouqi.k31.kmc_pre: data/Shitouqi/Shitouqi.fa.gz
-	$(DOCKER_KMC) kmc -k31 -t7 -m48 -ci3 -cs10000 -fa $< $(basename $@) results/kmc/tmp/
+	$(DOCKER_KMC) kmc -k31 -t7 -m48 -ci3 -cs10000 -fa $< $(basename $@) reGsults/kmc/tmp/
 
 results/kmc/Tifrunner.k21.kmc_pre: data/Tifrunner/Tifrunner.fa.gz
 	$(DOCKER_KMC) kmc -k21 -t7 -m48 -ci3 -cs10000 -sm -fa $< $(basename $@) results/kmc/tmp/
@@ -220,5 +222,27 @@ results/ragtag/minia-k141_besst_ragtag/ragtag.scaffold.fasta: $(REF_AHYPOGAEA) $
 
 results/ragtag/minia-k141_ragtag/ragtag.scaffold.fasta: $(REF_AHYPOGAEA) $(ASSEMBLY_MINIA_K141)
 	$(DOCKER_RAGTAG) ragtag.py scaffold -o $(dir $@) -t 7 -u $^
+
+# liftover gene annotation from A. hypogaea var Tifrunner.
+LIFTOFF_OUTPUT = results/liftoff/k141-besst-ragtag.scaffold.fasta
+LIFTOFF_UNMAPPED = $(basename $(LIFTOFF_OUTPUT)).unmapped.txt
+CHROMS = genome/chromosome-pairing.txt
+SCAFFOLDS = genome/scaffolds.txt
+TIFRUNNER_FASTA = genome/arahy.Tifrunner.gnm2.J5K5.genome_main.fna
+TIFRUNNER_GFF = genome/arahy.Tifrunner.gnm2.ann1.4K0L.gene_models_main.gff3
+
+liftoff: $(LIIFTOFF_OUTPUT)
+
+$(LIFTOFF_OUTPUT): $(SCAFFOLD_OUTPUT) $(CHROMS) $(SCAFFOLDS) $(TIFRUNNER_FASTA) $(TIFRUNNER_GFF)
+	$(DOCKER_LIFTOFF) -g $(TIFRUNNER_GFF) -o $@ -dir $(dir $@) -u $(LIFTOFF_UNMAPPED) --chroms $(CHROMS)--unplaced  $(sCAFFOLDS)
+
+$(CHROMS): $(TIFRUNNER_GENOME)
+	grep "Arahy" $< | perl -lane 'if (/^>/) {$$new=substr($$_,1); print "$$_,$$new"}' > $@
+
+$(SCAFFOLDS): $(TIFRUNNER_GENOME)
+	grep "scaffold" $< | perl -lane 'if (/^>/) {$$new=substr($$_,1); print "$$new"}' > $@
+
+
+
 
 
