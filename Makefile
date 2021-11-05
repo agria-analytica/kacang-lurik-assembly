@@ -18,7 +18,7 @@ DIRS = genome \
 	   results/trimmomatic \
 	   results/gatb-pipeline \
 	   results/quast \
-	   results/ragtag results/ragtag/minia-k141_besst_ragtaq results/ragtag/minia-k141_ragtag
+	   results/ragtag results/ragtag/minia-k141_besst_ragtaq results/ragtag/minia-k141_ragtag \
 	   results/genomescope \
 	   results/liftoff
 DATA = data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_1.fq.gz \
