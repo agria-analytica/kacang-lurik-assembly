@@ -20,11 +20,12 @@ DIRS = genome \
 	   results/quast \
 	   results/ragtag results/ragtag/minia-k141_besst_ragtaq results/ragtag/minia-k141_ragtag \
 	   results/genomescope \
-	   results/liftoff
+	   results/liftoff \
+	   results/bwa
 DATA = data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_1.fq.gz \
        data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_2.fq.gz
 
-all: $(DIRS) qc trimmomatic genomescope gatb-pipeline quast ragtag liftoff
+all: $(DIRS) qc trimmomatic genomescope gatb-pipeline quast ragtag liftoff align-reads
 
 $(DIRS): 
 	[ -d $@ ] || mkdir $@
@@ -224,23 +225,49 @@ results/ragtag/minia-k141_ragtag/ragtag.scaffold.fasta: $(REF_AHYPOGAEA) $(ASSEM
 	$(DOCKER_RAGTAG) ragtag.py scaffold -o $(dir $@) -t 7 -u $^
 
 # liftover gene annotation from A. hypogaea var Tifrunner.
-LIFTOFF_OUTPUT = results/liftoff/k141-besst-ragtag.scaffold.fasta
+LIFTOFF_INPUT = results/ragtag/minia-k141_besst_ragtag/ragtag.scaffold.fasta
+LIFTOFF_OUTPUT = results/liftoff/k141-besst-ragtag.scaffold.gff3
 LIFTOFF_UNMAPPED = $(basename $(LIFTOFF_OUTPUT)).unmapped.txt
 CHROMS = genome/chromosome-pairing.txt
 SCAFFOLDS = genome/scaffolds.txt
 TIFRUNNER_FASTA = genome/arahy.Tifrunner.gnm2.J5K5.genome_main.fna
 TIFRUNNER_GFF = genome/arahy.Tifrunner.gnm2.ann1.4K0L.gene_models_main.gff3
 
-liftoff: $(LIIFTOFF_OUTPUT)
+liftoff: $(LIFTOFF_OUTPUT)
 
-$(LIFTOFF_OUTPUT): $(SCAFFOLD_OUTPUT) $(CHROMS) $(SCAFFOLDS) $(TIFRUNNER_FASTA) $(TIFRUNNER_GFF)
-	$(DOCKER_LIFTOFF) -g $(TIFRUNNER_GFF) -o $@ -dir $(dir $@) -u $(LIFTOFF_UNMAPPED) --chroms $(CHROMS) --unplaced  $(SCAFFOLDS)
+$(LIFTOFF_OUTPUT): $(LIFTOFF_INPUT) $(CHROMS) $(SCAFFOLDS) $(TIFRUNNER_FASTA) $(TIFRUNNER_GFF)
+	$(DOCKER_LIFTOFF) liftoff -g $(TIFRUNNER_GFF) -o $@ -dir $(dir $@) -u $(LIFTOFF_UNMAPPED) -chroms $(CHROMS) -unplaced $(SCAFFOLDS) $(LIFTOFF_INPUT) $(TIFRUNNER_FASTA)
 
-$(CHROMS): $(TIFRUNNER_GENOME)
+$(CHROMS): $(TIFRUNNER_FASTA)
 	grep "Arahy" $< | perl -lane 'if (/^>/) {$$new=substr($$_,1); print "$$_,$$new"}' > $@
 
-$(SCAFFOLDS): $(TIFRUNNER_GENOME)
+$(SCAFFOLDS): $(TIFRUNNER_FASTA)
 	grep "scaffold" $< | perl -lane 'if (/^>/) {$$new=substr($$_,1); print "$$new"}' > $@
+
+# align reads to the assembled genome for variant calling.
+BWA_INDEX = $(LIFTOFF_INPUT).sa
+BWA_TIFRUNNER_INDEX = genome/arahy.Tifrunner.gnm2.J5K5.genome_main.fna.sa
+ALIGN_BAM = results/bwa/KL_DDSW210004672-1a_HCKFTDSX2.sorted.bam
+ALIGN_V_TIFRUNNER_BAM = results/bwa/KL_DDSW210004672-1a_HCKFTDSX2.v.Tifrunner.sorted.bam
+ALIGN_BAM2 = results/bwa/KL_DDSW210004672-1a_HCKFTDSX2.sorted.F2308.bam
+ALIGN_V_TIFRUNNER_BAM2 = results/bwa/KL_DDSW210004672-1a_HCKFTDSX2.v.Tifrunner.sorted.F2308.bam
+READ_GROUP = $(word 1,$(subst ., ,$(notdir $(ALIGN_BAM))))
+
+align-reads: $(ALIGN_BAM) $(ALIGN_V_TIFRUNNER_BAM) 
+
+$(ALIGN_BAM): $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2) $(BWA_INDEX)
+	$(DOCKER_GATB_PIPELINE) /bin/bash -c "bwa mem -t 5 -M -R '@RG\tID:$(READ_GROUP)\tSM:$(READ_GROUP)\tPL:ILLUMINA' $(basename $(BWA_INDEX)) $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2) | samtools sort -@ 5 - > $@" && \
+	$(DOCKER_GATB_PIPELINE) /bin/bash -c "samtools index $@ && samtools flagstat $@ && samtools view -b -h -F2308 $@ > $(ALIGN_BAM2) && samtools index $(ALIGN_BAM2) && samtools flagstat $(ALIGN_BAM2)"
+
+$(ALIGN_V_TIFRUNNER_BAM): $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2) $(BWA_TIFRUNNER_INDEX)
+	$(DOCKER_GATB_PIPELINE) /bin/bash -c "bwa mem -t 5 -M -R '@RG\tID:$(READ_GROUP)\tSM:$(READ_GROUP)\tPL:ILLUMINA' $(basename $(BWA_TIFRUNNER_INDEX)) $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2) | samtools sort -@ 5 - > $@" && \
+	$(DOCKER_GATB_PIPELINE) /bin/bash -c "samtools index $@ && samtools flagstat $@ && samtools view -b -h -F2308 $@ > $(ALIGN_V_TIFRUNNER_BAM2) && samtools index $(ALIGN_V_TIFRUNNER_BAM2) && samtools flagstat $(ALIGN_V_TIFRUNNER_BAM2)"
+
+$(BWA_INDEX): $(LIFTOFF_INPUT)
+	$(DOCKER_GATB_PIPELINE) bwa index $<
+
+$(BWA_TIFRUNNER_INDEX): $(basename $(BWA_TIFRUNNER_INDEX))
+	$(DOCKER_GATB_PIPELINE) bwa index $<
 
 
 
