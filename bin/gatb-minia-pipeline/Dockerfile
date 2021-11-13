@@ -7,7 +7,7 @@ RUN micromamba install -y -n base -c bioconda -c conda-forge -c defaults \
 	mathstats \
 	pysam=0.8.3 \
 	bwa \
-	samtools \
+	samtools=1.13 \
 	networkx=1.11 \
 	matplotlib && \
 	micromamba clean --all --yes
