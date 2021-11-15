@@ -10,6 +10,7 @@ DOCKER_QUAST = $(DOCKER) -v $$(pwd)/../ref-genomes/Arhypogaea/var.Tifrunner:/pro
 DOCKER_RAGTAG = $(DOCKER) agria.analytica/ragtag:2.0.1
 DOCKER_GENOMESCOPE = $(DOCKER) agria.analytica/genomescope2:be1953b
 DOCKER_LIFTOFF = $(DOCKER) agria.analytica/liftoff:1.6.1
+DOCKER_GATK = $(DOCKER) agria.analytica/gatk4:4.2.3.0 
 
 DIRS = genome \
 	   data data/Fuhuasheng data/Shitouqi data/Tifrunner \
@@ -21,7 +22,8 @@ DIRS = genome \
 	   results/ragtag results/ragtag/minia-k141_besst_ragtaq results/ragtag/minia-k141_ragtag \
 	   results/genomescope \
 	   results/liftoff \
-	   results/bwa
+	   results/bwa \
+	   results/gatk
 DATA = data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_1.fq.gz \
        data/X401SC21062291-Z01-F001/raw_data/KL/KL_DDSW210004672-1a_HCKFTDSX2_L1_2.fq.gz
 
@@ -246,22 +248,26 @@ $(SCAFFOLDS): $(TIFRUNNER_FASTA)
 
 # align reads to the assembled genome for variant calling.
 BWA_INDEX = $(LIFTOFF_INPUT).sa
-BWA_TIFRUNNER_INDEX = genome/arahy.Tifrunner.gnm2.J5K5.genome_main.fna.sa
+BWA_TIFRUNNER_INDEX = $(REF_AHYPOGAEA).sa
 ALIGN_BAM = results/bwa/KL_DDSW210004672-1a_HCKFTDSX2.sorted.bam
 ALIGN_V_TIFRUNNER_BAM = results/bwa/KL_DDSW210004672-1a_HCKFTDSX2.v.Tifrunner.sorted.bam
 ALIGN_BAM2 = results/bwa/KL_DDSW210004672-1a_HCKFTDSX2.sorted.F2308.bam
 ALIGN_V_TIFRUNNER_BAM2 = results/bwa/KL_DDSW210004672-1a_HCKFTDSX2.v.Tifrunner.sorted.F2308.bam
 READ_GROUP = $(word 1,$(subst ., ,$(notdir $(ALIGN_BAM))))
 
-align-reads: $(ALIGN_BAM) $(ALIGN_V_TIFRUNNER_BAM) 
+align-reads: $(ALIGN_BAM2) $(ALIGN_V_TIFRUNNER_BAM2) 
 
 $(ALIGN_BAM): $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2) $(BWA_INDEX)
-	$(DOCKER_GATB_PIPELINE) /bin/bash -c "bwa mem -t 5 -M -R '@RG\tID:$(READ_GROUP)\tSM:$(READ_GROUP)\tPL:ILLUMINA' $(basename $(BWA_INDEX)) $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2) | samtools sort -@ 5 - > $@" && \
-	$(DOCKER_GATB_PIPELINE) /bin/bash -c "samtools index $@ && samtools flagstat $@ && samtools view -b -h -F2308 $@ > $(ALIGN_BAM2) && samtools index $(ALIGN_BAM2) && samtools flagstat $(ALIGN_BAM2)"
+	$(DOCKER_GATB_PIPELINE) /bin/bash -c "bwa mem -t 5 -M -R '@RG\tID:$(READ_GROUP)\tSM:$(READ_GROUP)\tPL:ILLUMINA' $(basename $(BWA_INDEX)) $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2) | samtools sort -@ 5 - > $@"
+
+$(ALIGN_BAM2): $(ALIGN_BAM)
+	$(DOCKER_GATB_PIPELINE) /bin/bash -c "samtools index $< && samtools flagstat $< && samtools view -b -h -F2308 $< > $@ && samtools index $@ && samtools flagstat $@"
 
 $(ALIGN_V_TIFRUNNER_BAM): $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2) $(BWA_TIFRUNNER_INDEX)
-	$(DOCKER_GATB_PIPELINE) /bin/bash -c "bwa mem -t 5 -M -R '@RG\tID:$(READ_GROUP)\tSM:$(READ_GROUP)\tPL:ILLUMINA' $(basename $(BWA_TIFRUNNER_INDEX)) $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2) | samtools sort -@ 5 - > $@" && \
-	$(DOCKER_GATB_PIPELINE) /bin/bash -c "samtools index $@ && samtools flagstat $@ && samtools view -b -h -F2308 $@ > $(ALIGN_V_TIFRUNNER_BAM2) && samtools index $(ALIGN_V_TIFRUNNER_BAM2) && samtools flagstat $(ALIGN_V_TIFRUNNER_BAM2)"
+	$(DOCKER_GATB_PIPELINE) /bin/bash -c "bwa mem -t 5 -M -R '@RG\tID:$(READ_GROUP)\tSM:$(READ_GROUP)\tPL:ILLUMINA' $(basename $(BWA_TIFRUNNER_INDEX)) $(TRIM_FASTQ_PAIRED1) $(TRIM_FASTQ_PAIRED2) | samtools sort -@ 5 - > $@"
+
+$(ALIGN_V_TIFRUNNER_BAM2): $(ALIGN_V_TIFRUNNER_BAM)
+	$(DOCKER_GATB_PIPELINE) /bin/bash -c "samtools index $< && samtools flagstat $< && samtools view -b -h -F2308 $< > $@ && samtools index $@ && samtools flagstat $@"
 
 $(BWA_INDEX): $(LIFTOFF_INPUT)
 	$(DOCKER_GATB_PIPELINE) bwa index $<
@@ -269,7 +275,65 @@ $(BWA_INDEX): $(LIFTOFF_INPUT)
 $(BWA_TIFRUNNER_INDEX): $(basename $(BWA_TIFRUNNER_INDEX))
 	$(DOCKER_GATB_PIPELINE) bwa index $<
 
+# mark duplicates and start genotyping using gatk4.
+ALIGN_MARKDUPLICATES = results/gatk/$(notdir $(basename $(ALIGN_BAM2))).markdup.bam
+ALIGN_V_TIFRUNNER_MARKDUPLICATES = results/gatk/$(notdir $(basename $(ALIGN_V_TIFRUNNER_BAM2))).markdup.bam
+MD_KACANGLURIK = results/gatk/marked-dup.kacanglurik.txt
+MD_TIFRUNNER = results/gatk/marked-dup.tifrunner.txt
+GVCF_KACANGLURIK = $(basename $(ALIGN_MARKDUPLICATES)).all.gvcf.gz
+GVCF_TIFRUNNER = $(basename $(ALIGN_V_TIFRUNNER_MARKDUPLICATES)).all.gvcf.gz
+VCF_KACANGLURIK = $(basename $(basename $(GVCF_KACANGLURIK))).vcf.gz
+VCF_TIFRUNNER = $(basename $(basename $(GVCF_TIFRUNNER))).vcf.gz
+VCF_SNP_KACANGLURIK = $(basename $(basename $(VCF_KACANGLURIK))).snp.vcf.gz
+VCF_INDEL_KACANGLURIK = $(basename $(basename $(VCF_KACANGLURIK))).indel.vcf.gz
+VCF_SNP_TIFRUNNER = $(basename $(basename $(VCF_TIFRUNNER))).snp.vcf.gz
+VCF_INDEL_TIFRUNNER = $(basename $(basename $(VCF_TIFRUNNER))).indel.vcf.gz
 
+gatk: mark-duplicates haplotype-caller genotype-gvcf split-snp-indel
+
+mark-duplicates: $(ALIGN_MARKDUPLICATES) $(ALIGN_V_TIFRUNNER_MARKDUPLICATES)
+
+$(ALIGN_MARKDUPLICATES): $(ALIGN_BAM2) $(LIFTOFF_INPUT)
+	$(DOCKER_GATK) gatk --java-options "-Xmx8G" MarkDuplicates -R $(LIFTOFF_INPUT) -I $< -O $@ -M $(MD_KACANGLURIK) --MAX_FILE_HANDLES_FOR_READ_ENDS_MAP 1000 && \
+	$(DOCKER_GATB_PIPELINE) samtools index $@
+
+$(ALIGN_V_TIFRUNNER_MARKDUPLICATES): $(ALIGN_V_TIFRUNNER_BAM2) $(REF_AHYPOGAEA)
+	$(DOCKER_GATK) gatk --java-options "-Xmx8G" MarkDuplicates -R $(REF_AHYPOGAEA) -I $< -O $@ -M $(MD_TIFRUNNER) --MAX_FILE_HANDLES_FOR_READ_ENDS_MAP 1000 && \
+	$(DOCKER_GATB_PIPELINE) samtools index $@
+
+DICT_KACANGLURIK = $(basename $(LIFTOFF_INPUT)).dict
+DICT_TIFRUNNER = $(basename $(REF_AHYPOGAEA)).dict
+haplotype-caller: $(GVCF_KACANGLURIK) $(GVCF_TIFRUNNER)
+
+$(GVCF_KACANGLURIK): $(ALIGN_MARKDUPLICATES) $(DICT_KACANGLURIK)
+	$(DOCKER_GATK) gatk --java-options "-Xmx20G" HaplotypeCaller --native-pair-hmm-threads 8 -R $(LIFTOFF_INPUT) -I $< -O $@ -ERC GVCF
+
+$(GVCF_TIFRUNNER): $(ALIGN_V_TIFRUNNER_MARKDUPLICATES) $(DICT_TIFRUNNER)
+	$(DOCKER_GATK) gatk --java-options "-Xmx20G" HaplotypeCaller --native-pair-hmm-threads 8 -R $(REF_AHYPOGAEA) -I $< -O $@ -ERC GVCF
+
+$(DICT_KACANGLURIK): $(LIFTOFF_INPUT)
+	$(DOCKER_GATK) gatk --java-options "-Xmx4G" CreateSequenceDictionary -R $< && \
+	$(DOCKER_GATB_PIPELINE) samtools faidx $<
+
+$(DICT_TIFRUNNER): $(REF_AHYPOGAEA)
+	$(DOCKER_GATK) gatk --java-options "-Xmx4G" CreateSequenceDictionary -R $< && \
+	$(DOCKER_GATB_PIPELINE) samtools faidx $<
+
+genotype-gvcf: $(VCF_KACANGLURIK) $(VCF_TIFRUNNER)
+
+$(VCF_KACANGLURIK): $(GVCF_KACANGLURIK) $(DICT_KACANGLURIK)
+	$(DOCKER_GATK) gatk --java-options "-Xmx10G" GenotypeGVCFs -R $(LIFTOFF_INPUT) -O $@ -V $<
+
+$(VCF_TIFRUNNER): $(GVCF_TIFRUNNER) $(DICT_TIFRUNNER)
+	$(DOCKER_GATK) gatk --java-options "-Xmx10G" GenotypeGVCFs -R $(REF_AHYPOGAEA) -O $@ -V $<
+
+split-snp-indel: $(VCF_SNP_KACANGLURIK) $(VCF_INDEL_KACANGLURIK) $(VCF_SNP_TIFRUNNER) $(VCF_INDEL_TIFRUNNER)
+
+$(VCF_SNP_KACANGLURIK) $(VCF_SNP_TIFRUNNER): results/gatk/%.all.snp.vcf.gz: results/gatk/%.all.vcf.gz
+	$(DOCKER_GATK) gatk --java-options "-Xmx4G" SelectVariants -V $< -select-type SNP -O $@
+
+$(VCF_INDEL_KACANGLURIK) $(VCF_INDEL_TIFRUNNER): results/gatk/%.all.indel.vcf.gz: results/gatk/%.all.vcf.gz
+	$(DOCKER_GATK) gatk --java-options "-Xmx4G" SelectVariants -V $< -select-type INDEL -O $@
 
 
 
