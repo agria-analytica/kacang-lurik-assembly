@@ -161,7 +161,7 @@ data/Tifrunner/Tifrunner.fa.gz: data/Tifrunner/fastq.list
 	wget -O - -i $< | gunzip -c | perl -lane 'if (($$.%4)==1) {print ">".substr($$_,1)};if(($$.%4)==2){print $$_}' | pigz -p8 -c > $@
 
 # run genomescope.
-results/genomescope/kacang.lurik.k%.p2_linear_plot.png: results/kmc/kacang.lurik.k%.
+results/genomescope/kacang.lurik.k%.p2_linear_plot.png: results/kmc/kacang.lurik.k%.hist
 	$(DOCKER_GENOMESCOPE) genomescope2 -i $< -o $(dir $@) -k $* -n $(firstword $(subst _, ,$(notdir $@))) -p 2 --kmercov 5
 
 results/genomescope/kacang.lurik.k%.p3_linear_plot.png: results/kmc/kacang.lurik.k%.hist
@@ -289,7 +289,7 @@ VCF_INDEL_KACANGLURIK = $(basename $(basename $(VCF_KACANGLURIK))).indel.vcf.gz
 VCF_SNP_TIFRUNNER = $(basename $(basename $(VCF_TIFRUNNER))).snp.vcf.gz
 VCF_INDEL_TIFRUNNER = $(basename $(basename $(VCF_TIFRUNNER))).indel.vcf.gz
 
-gatk: mark-duplicates haplotype-caller genotype-gvcf split-snp-indel
+gatk: mark-duplicates haplotype-caller genotype-gvcf split-snp-indel filter-variants
 
 mark-duplicates: $(ALIGN_MARKDUPLICATES) $(ALIGN_V_TIFRUNNER_MARKDUPLICATES)
 
@@ -334,6 +334,25 @@ $(VCF_SNP_KACANGLURIK) $(VCF_SNP_TIFRUNNER): results/gatk/%.all.snp.vcf.gz: resu
 
 $(VCF_INDEL_KACANGLURIK) $(VCF_INDEL_TIFRUNNER): results/gatk/%.all.indel.vcf.gz: results/gatk/%.all.vcf.gz
 	$(DOCKER_GATK) gatk --java-options "-Xmx4G" SelectVariants -V $< -select-type INDEL -O $@
+
+SNP_TABLE_KACANGLURIK = $(basename $(basename $(VCF_SNP_KACANGLURIK))).table
+INDEL_TABLE_KACANGLURIK = $(basename $(basename $(VCF_INDEL_KACANGLURIK))).table
+SNP_TABLE_TIFRUNNER = $(basename $(basename $(VCF_SNP_TIFRUNNER))).table
+INDEL_TABLE_TIFRUNNER = $(basename $(basename $(VCF_INDEL_TIFRUNNER))).table
+STAT_KACANGLURIK = results/gatk/summary-stat.v.kacanglurik.pdf
+filter-variants: $(STAT_KACANGLURIK)
+
+$(STAT_KACANGGLURIK): $(SNP_TABLE_KACANGLURIK) $(INDEL_TABLE_KACANGLURIK) $(SNP_TABLE_TIFRUNNER) $(INDEL_TABLE_TIFRUNNER)
+	$(DOCKER_R)) Rscript bin/gatk-summary-stat.R
+
+results/gatk/KL_DDSW210004672-1a_HCKFTDSX2.sorted.F2308.markdup.all.%.table: results/gatk/KL_DDSW210004672-1a_HCKFTDSX2.sorted.F2308.markdup.all.%.vcf.gz
+	$(DOCKER_GATK) gatk --java-options "-Xmx4G" VariantsToTable -R $(LIFTOFF_INPUT) -V $< -O $@ -F CHROM -F POS -F QUAL -F QD -F DP -F MQ -F MQRankSum -F FS -F ReadPosRankSum -F SOR 
+
+results/gatk/KL_DDSW210004672-1a_HCKFTDSX2.v.Tifrunner.sorted.F2308.markdup.all.%.table: results/gatk/KL_DDSW210004672-1a_HCKFTDSX2.v.Tifrunner.sorted.F2308.markdup.all.%.vcf.gz
+	$(DOCKER_GATK) gatk --java-options "-Xmx4G" VariantsToTable -R $(REF_AHYPOGAEA) -V $< -O $@ -F CHROM -F POS -F QUAL -F QD -F DP -F MQ -F MQRankSum -F FS -F ReadPosRankSum -F SOR 
+
+
+
 
 
 
